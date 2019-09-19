@@ -9,10 +9,18 @@ my \TWITTER_PAT = /'http' 's'? '://twitter.com/' [<-[/]> && \H]+ '/status/'
 
 my $http = Cro::HTTP::Client.new: http => 1.1;
 
-sub twitter($msg) {
-	my $urls = $msg.content.match(TWITTER_PAT, :global);
+my %last-twitter;
 
-	if !($msg.content ~~ m:g:i/'album'/) {
+sub twitter($msg, :$last? = False) {
+	my $urls = $msg.content.match(TWITTER_PAT, :global);
+	my $chan = await $msg.channel;
+
+	if !$msg.defined {
+		return;
+	}
+
+	%last-twitter{$chan.id} = $msg;
+	if !$last && !($msg.content ~~ m:g:i/'album'/) {
 		return;
 	}
 
@@ -26,8 +34,9 @@ sub twitter($msg) {
 		my $imgs = $body ~~ m:g/'<meta' \s+ 'property="og:image"'
 		    \s+ 'content="' (<-[\"]>*) '">'/;
 		my $im = $imgs[1..*].map(*[0]).join("\n");
-		(await $msg.channel).send-message($im); 
+		$chan.send-message($im); 
 	}
+	%last-twitter{$chan.id}:delete;
 }
 
 sub MAIN() {
@@ -38,6 +47,12 @@ sub MAIN() {
 		whenever $discord.messages -> $m {
 			if $m.content ~~ TWITTER_PAT {
 				twitter($m);
+			} elsif $m.content ~~ m:i/^album \s+ that/ {
+				my $chan = await $m.channel;
+				if %last-twitter{$chan.id}:exists {
+					twitter(%last-twitter{$chan.id},
+					    :last(True));
+				}
 			}
 			if $m.content ~~ m:i/feet|foot/ {
 				if rand < 0.02 {
