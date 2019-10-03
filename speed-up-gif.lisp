@@ -21,7 +21,8 @@
                         (color-table-present (not (= (ash ,packed-fields -7) 0))))
                     (when color-table-present
                       (setq idx (+ idx (* (ash 1 color-table-size) 3)))))))
-      (unless (equalp (subseq gif 0 6) #(71 73 70 56 57 97)) ;;; GIF89a
+      (unless (or (equalp (subseq gif 0 6) #(71 73 70 56 57 97)) ;; GIF89a
+                  (equalp (subseq gif 0 6 #(71 30 70 56 55 97)))) ;;; GIF87a
         (error "not a GIF"))
       (let ((idx 13))
         (skip-color-table (aref gif 10))
