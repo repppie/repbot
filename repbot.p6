@@ -11,9 +11,8 @@ my \GIF_PAT = /'http' 's'? '://' \S+ '/' [ \S+ '.gif' ]/;
 my %last-twitter;
 my %last-gif;
 
-sub speed-up-gif($msg) {
-	my $chan = await $msg.channel;
-	my $url = $msg.content ~~ GIF_PAT;
+sub speed-up-gif($chan, $msg) {
+	my $url = $msg ~~ GIF_PAT;
 	my $http = Cro::HTTP::Client.new: http => 1.1;
 
 	my $body = try {
@@ -114,20 +113,31 @@ sub MAIN() {
 					twitter(%last-twitter{$chan.id},
 					    :embed(True));
 				}
-			} elsif $m.content ~~ GIF_PAT {
-				my $chan = await $m.channel;
-				%last-gif{$chan.id} = $m;
-			} elsif $m.content ~~ m:i/^speed \s+ that|this \s+ up/ {
-				my $chan = await $m.channel;
-				if %last-gif{$chan.id}:exists {
-					speed-up-gif(%last-gif{$chan.id});
-				}
 			}
+
 			if $m.content ~~ m:i/feet|foot/ {
 				if rand < 0.05 {
 					note "adding feet {DateTime.now}!";
 					await $m.add-reaction(
 					    <feet2:598371454811111445>);
+				}
+			}
+
+			if $m.content ~~ GIF_PAT {
+				my $chan = await $m.channel;
+				%last-gif{$chan.id} = $m.content;
+			} elsif $m.content ~~ m:i/^speed \s+ that|this \s+ up/ {
+				my $chan = await $m.channel;
+				if %last-gif{$chan.id}:exists {
+					speed-up-gif($chan,
+					    %last-gif{$chan.id});
+				}
+			}
+
+			for $m.attachments -> $attach {
+				if $attach.url ~~ GIF_PAT {
+					my $chan = await $m.channel;
+					%last-gif{$chan.id} = $attach.url;
 				}
 			}
 		}
