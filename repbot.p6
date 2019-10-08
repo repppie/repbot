@@ -7,18 +7,30 @@ my \TOKEN = (|EVALFILE "keys.p6").first;
 my \TWITTER_PAT = /'http' 's'? '://twitter.com/' [<-[/]> && \H]+ '/status/'
      \d+/;
 my \GIF_PAT = /'http' 's'? '://' \S+ '/' [ \S+ '.gif' ]/;
+my \TENOR_PAT = /'http' 's'? '://tenor.com/view/' \S+/;
 
 my %last-twitter;
 my %last-gif;
+my $http = Cro::HTTP::Client.new: http => 1.1;
+
+sub get-tenor-gif($chan, $url) {
+	my $body = try {
+		my $resp = await $http.get($url);
+		my $body = await $resp.body;
+		my $gif = $body ~~ m/'content="' ('https://' <-[/]>+
+		    '.tenor.com/' \S+ 'tenor.gif' <-[\"]>*) '">'/;
+		%last-gif{$chan.id} = $gif[0].Str;
+		CATCH { default { .Str.say }}
+	}
+}
 
 sub speed-up-gif($chan, $msg) {
 	my $url = $msg ~~ GIF_PAT;
-	my $http = Cro::HTTP::Client.new: http => 1.1;
 
 	my $body = try {
 		my $resp = await $http.head($url.Str);
 		die "too big {$resp.header('content-length').Int}" if
-		    $resp.header('content-length').Int >= 10 +< 20;
+		    $resp.header('content-length').Int >= 8 +< 20;
 		$resp = await $http.get($url.Str);
 		CATCH { default { .Str.say }}
 		await $resp.body
@@ -50,7 +62,6 @@ sub speed-up-gif($chan, $msg) {
 sub twitter($msg, :$embed? = False) {
 	my $urls = $msg.content.match(TWITTER_PAT, :global);
 	my $chan = await $msg.channel;
-	my $http = Cro::HTTP::Client.new: http => 1.1;
 
 	if !$msg.defined {
 		return;
@@ -94,8 +105,8 @@ sub MAIN() {
 
 	react {
 		whenever $discord.messages -> $m {
+			my $chan = await $m.channel;
 			if $m.content ~~ TWITTER_PAT {
-				my $chan = await $m.channel;
 				%last-twitter{$chan.id} = $m;
 				if ($m.content ~~ m:i/'album'/) {
 					twitter($m);
@@ -103,12 +114,10 @@ sub MAIN() {
 					twitter($m, :embed(True));
 				}
 			} elsif $m.content ~~ m:i/^album \s+ that/ {
-				my $chan = await $m.channel;
 				if %last-twitter{$chan.id}:exists {
 					twitter(%last-twitter{$chan.id});
 				}
 			} elsif $m.content ~~ m:i/^embed \s+ that/ {
-				my $chan = await $m.channel;
 				if %last-twitter{$chan.id}:exists {
 					twitter(%last-twitter{$chan.id},
 					    :embed(True));
@@ -124,10 +133,10 @@ sub MAIN() {
 			}
 
 			if $m.content ~~ GIF_PAT {
-				my $chan = await $m.channel;
 				%last-gif{$chan.id} = $m.content;
+			} elsif $m.content ~~ TENOR_PAT {
+				get-tenor-gif($chan, $m.content);
 			} elsif $m.content ~~ m:i/^speed \s+ that|this \s+ up/ {
-				my $chan = await $m.channel;
 				if %last-gif{$chan.id}:exists {
 					speed-up-gif($chan,
 					    %last-gif{$chan.id});
@@ -136,7 +145,6 @@ sub MAIN() {
 
 			for $m.attachments -> $attach {
 				if $attach.url ~~ GIF_PAT {
-					my $chan = await $m.channel;
 					%last-gif{$chan.id} = $attach.url;
 				}
 			}
