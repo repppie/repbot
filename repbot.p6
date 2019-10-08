@@ -85,7 +85,7 @@ sub twitter($msg, :$embed? = False) {
 		if ($embed)  {
 			my $em = $body ~~ m/'data-expanded-url="' (<-[\"]>*)
 			    '"'/;
-			$im = $em[0].Str;
+			$im = $em[0] ?? $em[0].Str !! Nil;
 		} else {
 			my $imgs = $body ~~ m:g/'<meta' \s+
 			    'property="og:image"' \s+ 'content="'
