@@ -136,7 +136,7 @@ sub MAIN() {
 				%last-gif{$chan.id} = $m.content;
 			} elsif $m.content ~~ TENOR_PAT {
 				get-tenor-gif($chan, $m.content);
-			} elsif $m.content ~~ m:i/^speed \s+ that|this \s+ up/ {
+			} elsif $m.content ~~ m:i/^speed \s+ that \s+ up/ {
 				if %last-gif{$chan.id}:exists {
 					speed-up-gif($chan,
 					    %last-gif{$chan.id});
