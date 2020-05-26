@@ -108,9 +108,7 @@ sub MAIN() {
 			my $chan = await $m.channel;
 			if $m.content ~~ TWITTER_PAT {
 				%last-twitter{$chan.id} = $m;
-				if ($m.content ~~ m:i/'album'/) {
-					twitter($m);
-				} elsif ($m.content ~~ m:i/'embed'/) {
+				if ($m.content ~~ m:i/'embed'/) {
 					twitter($m, :embed(True));
 				}
 			} elsif $m.content ~~ m:i/^album \s+ that/ {
