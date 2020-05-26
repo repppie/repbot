@@ -83,9 +83,21 @@ sub twitter($msg, :$embed? = False) {
 
 		my $im;
 		if ($embed)  {
-			my $em = $body ~~ m/'data-expanded-url="' (<-[\"]>*)
+			my @em = $body ~~ m:g/'data-expanded-url="' (<-[\"]>*)
 			    '"'/;
-			$im = $em[0] ?? $em[0].Str !! Nil;
+			my $m;
+			for @em -> $e {
+				if ($e[0] ~~ m/'twitter.com'/) {
+					$m = $e;
+					last;
+				}
+			}
+			# Randomly say "False" when there's nothing to embed.
+			if rand < 0.50 {
+				$im = $m[0] ?? $m[0].Str !! Nil;
+			} else {
+				$im = $m[0].Str;
+			}
 		} else {
 			my $imgs = $body ~~ m:g/'<meta' \s+
 			    'property="og:image"' \s+ 'content="'
