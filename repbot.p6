@@ -8,6 +8,7 @@ my \TWITTER_PAT = /'http' 's'? '://twitter.com/' [<-[/]> && \H]+ '/status/'
      \d+/;
 my \GIF_PAT = /'http' 's'? '://' \S+ '/' [ \S+ '.gif' ]/;
 my \TENOR_PAT = /'http' 's'? '://tenor.com/view/' \S+/;
+my \TWITTER_EMBED = 'https://publish.twitter.com/oembed?url=';
 
 my %last-twitter;
 my %last-gif;
@@ -59,7 +60,7 @@ sub speed-up-gif($chan, $msg) {
 	%last-gif{$chan.id}:delete;
 }
 
-sub twitter($msg, :$embed? = False) {
+sub twitter($msg) {
 	my $urls = $msg.content.match(TWITTER_PAT, :global);
 	my $chan = await $msg.channel;
 
@@ -68,7 +69,7 @@ sub twitter($msg, :$embed? = False) {
 	}
 
 	for $urls.list -> $u {
-		my $resp = await $http.get($u.Str);
+		my $resp = await $http.get(TWITTER_EMBED  ~ $u.Str);
 		my $body = await $resp.body;
 		CATCH {
 			default {
@@ -80,31 +81,21 @@ sub twitter($msg, :$embed? = False) {
 				}
 			}
 		}
-
+		my $html = $body<html>;
 		my $im;
-		if ($embed)  {
-			my @em = $body ~~ m:g/'data-expanded-url="' (<-[\"]>*)
-			    '"'/;
-			my $m;
-			for @em -> $e {
-				if ($e[0] ~~ m/'twitter.com'/) {
-					$m = $e;
-					last;
-				}
-			}
-			# Randomly say "False" when there's nothing to embed.
-			if rand < 0.50 {
-				$im = $m[0] ?? $m[0].Str !! Nil;
+		if $html ~~ /'href="' (<-[\"]>*) '"'/ {
+			my $resp = await $http.head($/[0]);
+			my $req = $resp.request;
+			if $req.target ~~ /'/photo/'/ {
+				last;
 			} else {
-				$im = $m[0].Str;
+				$im = 'http://twitter.com' ~ $req.target;
 			}
-		} else {
-			my $imgs = $body ~~ m:g/'<meta' \s+
-			    'property="og:image"' \s+ 'content="'
-			    (<-[\"]>*) '">'/;
-			$im = $imgs[1..*].map(*[0]).join("\n");
+		} elsif rand < 0.50 {
+			$im = Nil;
 		}
-		if ($im) {
+
+		if $im {
 			$chan.send-message($im); 
 		}
 	}
@@ -121,11 +112,7 @@ sub MAIN() {
 			if $m.content ~~ TWITTER_PAT {
 				%last-twitter{$chan.id} = $m;
 				if ($m.content ~~ m:i/'embed'/) {
-					twitter($m, :embed(True));
-				}
-			} elsif $m.content ~~ m:i/^album \s+ that/ {
-				if %last-twitter{$chan.id}:exists {
-					twitter(%last-twitter{$chan.id});
+					twitter($m);
 				}
 			} elsif $m.content ~~ m:i/^embed \s+ that/ {
 				if %last-twitter{$chan.id}:exists {
