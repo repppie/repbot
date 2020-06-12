@@ -83,21 +83,17 @@ sub twitter($msg) {
 		}
 		my $html = $body<html>;
 		my $im;
-		if $html ~~ /'href="' (<-[\"]>*) '"'/ {
-			my $resp = await $http.head($/[0]);
-			my $req = $resp.request;
-			if $req.target ~~ /'/photo/'/ {
-				last;
-			} else {
-				$im = 'http://twitter.com' ~ $req.target;
+		if my $m = $html ~~ /'href="' (<-[\"]>*) '"'/ and
+		    !($0 ~~ /'twitter.com'/) {
+			my $resp = await $http.head($m[0]):!follow;
+			if $resp.status == 301 {
+				$im = $_ unless $_ ~~ /'twitter.com' .*
+				    ('/photo/' | '/hashtag/')/ given
+				    $resp.header('location');
 			}
-		} elsif rand < 0.50 {
-			$im = Nil;
 		}
-
-		if $im {
-			$chan.send-message($im); 
-		}
+		$im = 'False' when !$im && rand < 0.25;
+		$chan.send-message($im) if $im;
 	}
 	%last-twitter{$chan.id}:delete;
 }
@@ -109,16 +105,15 @@ sub MAIN() {
 	react {
 		whenever $discord.messages -> $m {
 			my $chan = await $m.channel;
-			if $m.content ~~ TWITTER_PAT {
+			when $m.content ~~ TWITTER_PAT {
 				%last-twitter{$chan.id} = $m;
 				if ($m.content ~~ m:i/'embed'/) {
 					twitter($m);
 				}
-			} elsif $m.content ~~ m:i/^embed \s+ that/ {
-				if %last-twitter{$chan.id}:exists {
-					twitter(%last-twitter{$chan.id},
-					    :embed(True));
-				}
+			}
+			when $m.content ~~ m:i/^embed \s+ that/ {
+				twitter(%last-twitter{$chan.id}) if
+				    %last-twitter{$chan.id}:exists;
 			}
 
 			if $m.content ~~ m:i/feet|foot/ {
@@ -129,11 +124,13 @@ sub MAIN() {
 				}
 			}
 
-			if $m.content ~~ GIF_PAT {
+			when $m.content ~~ GIF_PAT {
 				%last-gif{$chan.id} = $m.content;
-			} elsif $m.content ~~ TENOR_PAT {
+			}
+			when $m.content ~~ TENOR_PAT {
 				get-tenor-gif($chan, $m.content);
-			} elsif $m.content ~~ m:i/^speed \s+ that \s+ up/ {
+			}
+			when $m.content ~~ m:i/^speed \s+ that \s+ up/ {
 				if %last-gif{$chan.id}:exists {
 					speed-up-gif($chan,
 					    %last-gif{$chan.id});
