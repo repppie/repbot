@@ -116,14 +116,6 @@ sub MAIN() {
 				    %last-twitter{$chan.id}:exists;
 			}
 
-			if $m.content ~~ m:i/feet|foot/ {
-				if rand < 0.05 {
-					note "adding feet {DateTime.now}!";
-					await $m.add-reaction(
-					    <feet2:598371454811111445>);
-				}
-			}
-
 			when $m.content ~~ GIF_PAT {
 				%last-gif{$chan.id} = $m.content;
 			}
