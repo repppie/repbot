@@ -12,6 +12,8 @@ my \TWITTER_EMBED = 'https://publish.twitter.com/oembed?url=';
 
 my %last-twitter;
 my %last-gif;
+my %replies;
+
 my $http = Cro::HTTP::Client.new: http => 1.1;
 
 sub get-tenor-gif($chan, $url) {
@@ -46,18 +48,16 @@ sub speed-up-gif($chan, $msg) {
 
 		my $exit_code = run './speed-up-gif', 'in.gif', 'out.gif';
 		return if $exit_code != 0;
-
-		$chan.send-message(:embed(image => url =>
-		    "attachment://out.gif"), :file("out.gif"));
-
 		LEAVE {
 			$in-gif.close;
 			unlink 'in.gif';
 			unlink 'out.gif';
 		}
-	}
+		CATCH { default { .Str.say }}
 
-	%last-gif{$chan.id}:delete;
+		$chan.send-message(:embed(image => url =>
+		    "attachment://out.gif"), :file("out.gif"))
+	}
 }
 
 sub twitter($msg) {
@@ -91,7 +91,7 @@ sub twitter($msg) {
 			}
 		}
 		$im = 'False' when !$im && rand < 0.25;
-		$chan.send-message($im) if $im;
+		%replies{$msg.id} = $chan.send-message($im) if $im;
 	}
 }
 
@@ -120,20 +120,19 @@ sub MAIN() {
 				get-tenor-gif($chan, $m.content);
 			}
 			when $m.content ~~ m:i/^speed \s+ that \s+ up/ {
-				if %last-gif{$chan.id}:exists {
-					speed-up-gif($chan,
-					    %last-gif{$chan.id});
-				}
+				%replies{$m.id} = speed-up-gif($chan,
+				    %last-gif{$chan.id}:delete) if
+				    %last-gif{$chan.id}:exists;
 			}
 
-			for $m.attachments -> $attach {
-				if $attach.url ~~ GIF_PAT {
-					%last-gif{$chan.id} = $attach.url;
-				}
+			for $m.attachments {
+				%last-gif{$chan.id} = .url if .url ~~ GIF_PAT;
 			}
 		}
 
 		whenever $discord.events -> $e {
+			(await %replies{$e<d><id>}).delete when $e<t> eq
+			    'MESSAGE_DELETE' and %replies{$e<d><id>}:exists;
 		}
 	}
 }
