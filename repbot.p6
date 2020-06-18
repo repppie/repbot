@@ -64,9 +64,7 @@ sub twitter($msg) {
 	my $urls = $msg.content.match(TWITTER_PAT, :global);
 	my $chan = await $msg.channel;
 
-	if !$msg.defined {
-		return;
-	}
+	return without $msg;
 
 	for $urls.list -> $u {
 		my $resp = await $http.get(TWITTER_EMBED  ~ $u.Str);
@@ -83,11 +81,11 @@ sub twitter($msg) {
 		}
 		my $html = $body<html>;
 		my $im;
-		if my $m = $html ~~ /'href="' (<-[\"]>*) '"'/ and
-		    !($0 ~~ /'twitter.com'/) {
+		if $html ~~ m:g/'href="' (<-[\"]>*) '"'/.grep({ $_ !~~
+		    /'twitter.com'/}).first -> $m {
 			my $resp = await $http.head($m[0]):!follow;
 			if $resp.status == 301 {
-				$im = $_ unless $_ ~~ /'twitter.com' .*
+				$im = $_ unless /'twitter.com' .*
 				    ('/photo/' | '/hashtag/')/ given
 				    $resp.header('location');
 			}
@@ -95,7 +93,6 @@ sub twitter($msg) {
 		$im = 'False' when !$im && rand < 0.25;
 		$chan.send-message($im) if $im;
 	}
-	%last-twitter{$chan.id}:delete;
 }
 
 sub MAIN() {
@@ -106,13 +103,13 @@ sub MAIN() {
 		whenever $discord.messages -> $m {
 			my $chan = await $m.channel;
 			when $m.content ~~ TWITTER_PAT {
-				%last-twitter{$chan.id} = $m;
-				if ($m.content ~~ m:i/'embed'/) {
+				when ($m.content ~~ m:i/'embed'/) {
 					twitter($m);
 				}
+				%last-twitter{$chan.id} = $m;
 			}
 			when $m.content ~~ m:i/^embed \s+ that/ {
-				twitter(%last-twitter{$chan.id}) if
+				twitter(%last-twitter{$chan.id}:delete) if
 				    %last-twitter{$chan.id}:exists;
 			}
 
