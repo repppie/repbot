@@ -86,8 +86,8 @@ sub twitter($msg) {
 			my $resp = await $http.head($m[0]):!follow;
 			if $resp.status == 301 {
 				$im = $_ unless /'twitter.com' .*
-				    ('/photo/' | '/hashtag/')/ given
-				    $resp.header('location');
+				    ('/photo/' | '/hashtag/' | '/video/')/
+				    given $resp.header('location');
 			}
 		}
 		$im = 'False' when !$im && rand < 0.25;
