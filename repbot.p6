@@ -4,7 +4,7 @@ use Cro::HTTP::Header;
 
 my \TOKEN = (|EVALFILE "keys.p6").first;
 
-my \TWITTER_PAT = /'http' 's'? '://twitter.com/' [<-[/]> && \H]+ '/status/'
+my \TWITTER_PAT = /'http' 's'? '://' ['mobile.']? 'twitter.com/' [<-[/]> && \H]+ '/status/'
      \d+/;
 my \GIF_PAT = /'http' 's'? '://' \S+ '/' [ \S+ '.gif' ]/;
 my \TENOR_PAT = /'http' 's'? '://tenor.com/view/' \S+/;
@@ -88,6 +88,12 @@ sub twitter($msg) {
 				$im = $_ unless /'twitter.com' .*
 				    ('/photo/' | '/hashtag/' | '/video/')/
 				    given $resp.header('location');
+				if (my $proc = run 'youtube-dl', '-g', $u, :out,
+				    :err) == 0 {
+					my $u = $proc.out.slurp(:close);
+					$im ~= ' ' ~ $u if $u ~~
+					    m/'https://video.twimg.com'/;
+				}
 			}
 		}
 		$im = 'False' when !$im && rand < 0.25;
