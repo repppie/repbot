@@ -88,11 +88,15 @@ sub twitter($msg) {
 				$im = $_ unless /'twitter.com' .*
 				    ('/photo/' | '/hashtag/' | '/video/')/
 				    given $resp.header('location');
-				if (my $proc = run 'youtube-dl', '-g', $u, :out,
-				    :err) == 0 {
-					my $u = $proc.out.slurp(:close);
-					$im ~= ' ' ~ $u if $u ~~
-					    m/'https://video.twimg.com'/;
+				for ^3 {
+					my $proc = run 'youtube-dl', '-g',
+					    $u, :out, :err;
+					my $t = $proc.out.slurp(:close);
+					next if $t ~~ m/'400 Bad Request'/;
+					if $t ~~  m/'https://video.twimg.com'/ {
+						$im ~= ' ' ~ $t;
+						last;
+					}
 				}
 			}
 		}
